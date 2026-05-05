@@ -4,6 +4,9 @@ ThaiDictate.app/
 build/
 .build/
 
+# Icon intermediates (regenerated from generate_icon.swift)
+AppIcon.iconset/
+
 # macOS
 .DS_Store
 
