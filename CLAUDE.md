@@ -1,30 +1,36 @@
 # ThaiDictate — Mac Menu Bar App
 
-แปลงเสียงเป็นข้อความภาษาไทย โดยใช้ Apple Speech Recognition แต่ **บังคับ locale = th-TH** เสมอ
-ไม่สนใจว่าคีย์บอร์ดปัจจุบันจะเป็นภาษาอะไร
+แปลงเสียงเป็นข้อความภาษาไทย โดย **lock locale = th-TH** เสมอ ไม่ขึ้นกับ keyboard input source ปัจจุบัน
+รวมถึงโหมด TH→EN ที่แปลผลลัพธ์เป็นอังกฤษด้วย Apple Translation framework (offline)
 
-## How it works
+## Architecture
 
-- Menu bar app (ไม่มี dock icon)
-- ดักจับการกด `Control` 2 ครั้ง (ภายใน 0.4 วินาที) เป็นทริกเกอร์ start/stop
-- เมื่อ start → เปิดไมค์ + ส่งเสียงเข้า `SFSpeechRecognizer(locale: "th-TH")`
-- เมื่อ stop → รอผลลัพธ์ → copy ไปที่ clipboard → simulate `Cmd+V` → restore clipboard เดิม
+- Menu bar app (`LSUIElement = true`, no dock icon)
+- Hotkey: `Control` 2 ครั้งภายใน 0.4s ผ่าน `NSEvent.addGlobalMonitorForEvents`
+- Speech: `SFSpeechRecognizer(locale: "th-TH")` + `requiresOnDeviceRecognition` ถ้ารองรับ
+- Live caption: `NSPanel` (nonactivatingPanel) + `NSVisualEffectView` (HUD blur) ลอยกลางจอ
+- Translation: hidden `NSHostingView` ขนาด 1×1 px มุมจอ → SwiftUI `.translationTask` → `TranslationSession`
+- Output: clipboard + simulate `Cmd+V` ด้วย `CGEvent.post(tap: .cghidEventTap)`
 
 ## Tech
 
-- Swift 6 + AppKit (no SwiftUI, no Xcode project)
-- Frameworks: Cocoa, Speech, AVFoundation
-- Build: single `swiftc` command (ดู `build.sh`)
+- Swift 6 + AppKit + ส่วนเล็กๆ ของ SwiftUI (สำหรับ Translation framework เท่านั้น)
+- Frameworks: Cocoa, Speech, AVFoundation, SwiftUI, Translation, ApplicationServices, UserNotifications
+- Build: single `swiftc` command (ดู `build.sh`) — no Xcode project, no SPM
 - Bundle ID: `com.madebytle.thaidictate`
+- Min macOS: 14.4 (Translation framework)
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `main.swift` | โค้ดทั้งหมดของ app อยู่ในไฟล์เดียว |
+| `main.swift` | Source code ทั้งหมดของ app อยู่ในไฟล์เดียว |
+| `generate_icon.swift` | Render `AppIcon.iconset/` ทุกขนาดด้วย CoreGraphics + SF Symbol |
+| `AppIcon.icns` | Compiled icon (commit ไว้ในซอร์ส) |
 | `Info.plist` | Bundle metadata + permission usage descriptions |
-| `build.sh` | Compile + create `.app` bundle + ad-hoc sign |
-| `ThaiDictate.app` | App ที่ build แล้ว (gitignore ได้) |
+| `build.sh` | Compile → bundle → ad-hoc sign |
+
+`AppIcon.iconset/` และ `ThaiDictate.app/` อยู่ใน `.gitignore`
 
 ## Build & Run
 
@@ -33,31 +39,31 @@
 open ThaiDictate.app
 ```
 
-## Required permissions (ครั้งแรกใช้)
+## Required permissions (first run)
 
-ต้องเปิด 4 อย่างใน **System Settings → Privacy & Security**:
+ต้องเปิดใน **System Settings → Privacy & Security**:
 
-1. **Microphone** — ป๊อปอัพอัตโนมัติเมื่อ start recording ครั้งแรก
-2. **Speech Recognition** — ป๊อปอัพอัตโนมัติเมื่อเปิด app
-3. **Input Monitoring** — *ต้องเพิ่มเอง* เพื่อให้ดักจับ Control 2 ครั้งได้
-4. **Accessibility** — *ต้องเพิ่มเอง* เพื่อให้ simulate Cmd+V ได้
+1. **Microphone** — auto prompt
+2. **Speech Recognition** — auto prompt
+3. **Input Monitoring** — manual add (สำหรับดักจับ Control 2 ครั้ง)
+4. **Accessibility** — manual add (สำหรับ simulate Cmd+V)
 
-วิธีเพิ่ม Input Monitoring / Accessibility:
-- เปิด System Settings → Privacy & Security → Input Monitoring (หรือ Accessibility)
-- คลิก `+` → เลือกไฟล์ `ThaiDictate.app` → เปิดสวิตช์
+หมายเหตุ: ad-hoc signed builds เปลี่ยน cdhash ทุก build → macOS อาจ revoke permissions
+หาก hotkey หรือ paste หยุดทำงานหลัง rebuild ให้ลบ ThaiDictate.app ออกจาก list แล้ว add ใหม่
 
-หลังเพิ่ม permission แต่ละครั้ง อาจต้อง quit app แล้วเปิดใหม่
+## Known limitations
 
-## Limitations & known issues
-
-- Apple Speech Recognition ภาษาไทยไม่แม่นเท่า OpenAI Whisper — ถ้าต้องการความแม่นสูงกว่า ลอง integrate Whisper แทน
-- ไม่มี on-device mode (`requiresOnDeviceRecognition = false`) → ส่งเสียงไป Apple servers
-- ใช้ clipboard hack สำหรับ insert text → ถ้า clipboard เดิมเป็น image จะหาย (กู้คืนเฉพาะ string)
-- ไม่มี waveform visualization / countdown UI
+- Apple ASR ภาษาไทยยังไม่แม่นเท่า OpenAI Whisper
+- Clipboard hack สำหรับ insert text → ถ้า clipboard เดิมเป็น image จะกู้กลับไม่ได้ (กู้คืนเฉพาะ string)
+- `SFSpeechRecognizer` มี bug: เมื่อใช้ `shouldReportPartialResults=true` + `requiresOnDeviceRecognition=true`
+  → callback `isFinal=true` บางทีไม่ยิง → workaround คือเก็บ `latestPartialText` แล้ว paste ทันทีตอนหยุด
+- Translation framework ค้างถ้า language pack ยังไม่โหลด → workaround คือ 8s timeout + fallback paste ภาษาไทย
 
 ## Future ideas
 
-- เปลี่ยน backend เป็น Whisper (local via `whisper.cpp` หรือ OpenAI API)
-- เพิ่ม config UI สำหรับเลือก hotkey
+- Whisper backend (whisper.cpp / WhisperKit) เพื่อความแม่นที่สูงขึ้น
+- Configurable hotkey
 - Auto-launch on login
-- Streaming partial results
+- เพิ่มภาษาเป้าหมายอื่น (TH→JP, TH→ZH ฯลฯ)
+- Sound feedback
+- Notarize + DMG release

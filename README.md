@@ -36,7 +36,7 @@
 ### ทางที่ 1: Build จาก source (แนะนำ)
 
 ```bash
-git clone https://github.com/<your-username>/ThaiDictate.git
+git clone https://github.com/tlejay/ThaiDictate.git
 cd ThaiDictate
 ./build.sh
 open ThaiDictate.app
@@ -124,8 +124,6 @@ xcode-select --install
 
 ---
 
----
-
 ## 🐛 Troubleshooting
 
 ### กด Control 2 ครั้งแล้วไม่ทำงาน
@@ -201,8 +199,8 @@ MIT — เอาไปใช้ ดัดแปลง แจก ขายได
 
 ## 🙏 Credits
 
-สร้างโดย **Tle (Jakapong)** ด้วย Claude Code (vibe coding)
+สร้างโดย **Tle** ด้วย Claude Code
 
-ส่วนหนึ่งของ **[madebytle.com](https://madebytle.com)** — รวมผลงานจากการสร้าง Tech Product
+ส่วนหนึ่งของ **[madebytle.com](https://madebytle.com)**
 
 ถ้าใช้แล้วชอบ บอกต่อเพื่อนหน่อย 💚
