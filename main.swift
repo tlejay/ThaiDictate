@@ -181,6 +181,9 @@ class AppCoordinator: NSObject, NSApplicationDelegate {
     private var thaiToThaiItem: NSMenuItem!
     private var thaiToEnglishItem: NSMenuItem!
 
+    private var latestPartialText: String = ""
+    private var hasFinalized: Bool = false
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
         SFSpeechRecognizer.requestAuthorization { status in
@@ -306,6 +309,9 @@ class AppCoordinator: NSObject, NSApplicationDelegate {
         recognitionTask?.cancel()
         recognitionTask = nil
 
+        latestPartialText = ""
+        hasFinalized = false
+
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         if recognizer.supportsOnDeviceRecognition {
@@ -335,23 +341,15 @@ class AppCoordinator: NSObject, NSApplicationDelegate {
 
             if let result = result {
                 let text = result.bestTranscription.formattedString
-                if result.isFinal {
-                    DispatchQueue.main.async {
-                        self.handleFinalResult(thaiText: text)
-                    }
-                } else {
-                    DispatchQueue.main.async {
-                        self.captionWindow.update(text: text)
-                    }
+                DispatchQueue.main.async {
+                    guard !self.hasFinalized else { return }
+                    self.latestPartialText = text
+                    self.captionWindow.update(text: text)
                 }
             } else if let error = error {
                 let nserr = error as NSError
                 if nserr.code != 203 && nserr.code != 216 {
                     print("Recognition error: \(error)")
-                }
-                DispatchQueue.main.async {
-                    self.captionWindow.hide()
-                    self.cleanupAudio()
                 }
             }
         }
@@ -361,9 +359,18 @@ class AppCoordinator: NSObject, NSApplicationDelegate {
         captionWindow.show(text: "")
     }
 
-    private func handleFinalResult(thaiText: String) {
-        let trimmed = thaiText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
+    private func stopRecording() {
+        guard !hasFinalized else { return }
+        hasFinalized = true
+
+        audioEngine.stop()
+        recognitionRequest?.endAudio()
+        isRecording = false
+        updateStatusIcon()
+
+        let textAtStop = latestPartialText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !textAtStop.isEmpty else {
             captionWindow.hide()
             cleanupAudio()
             return
@@ -372,25 +379,17 @@ class AppCoordinator: NSObject, NSApplicationDelegate {
         switch outputLanguage {
         case .thai:
             captionWindow.hide()
-            insertText(trimmed)
+            insertText(textAtStop)
             cleanupAudio()
         case .english:
             captionWindow.update(text: "🌐 กำลังแปล…")
-            translationManager.translate(trimmed) { [weak self] english in
+            translationManager.translate(textAtStop) { [weak self] english in
                 guard let self = self else { return }
-                let textToInsert = english ?? trimmed
                 self.captionWindow.hide()
-                self.insertText(textToInsert)
+                self.insertText(english ?? textAtStop)
                 self.cleanupAudio()
             }
         }
-    }
-
-    private func stopRecording() {
-        audioEngine.stop()
-        recognitionRequest?.endAudio()
-        isRecording = false
-        updateStatusIcon()
     }
 
     private func cleanupAudio() {
