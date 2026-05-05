@@ -1,0 +1,21 @@
+# Build output
+ThaiDictate.app/
+*.dSYM/
+build/
+.build/
+
+# macOS
+.DS_Store
+
+# Xcode (if anyone opens in Xcode later)
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+
+# Swift Package Manager
+Package.resolved
+
+# Editor
+.vscode/
+.idea/
+*.swp

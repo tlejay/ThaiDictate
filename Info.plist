@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>ThaiDictate</string>
+    <key>CFBundleDisplayName</key>
+    <string>ThaiDictate</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.madebytle.thaidictate</string>
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleExecutable</key>
+    <string>ThaiDictate</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>ThaiDictate ใช้ไมโครโฟนเพื่อแปลงเสียงพูดของคุณเป็นข้อความภาษาไทย</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>ThaiDictate ใช้ Speech Recognition ของระบบเพื่อแปลงเสียงเป็นข้อความภาษาไทย</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>ThaiDictate ส่ง Cmd+V เพื่อวางข้อความที่แปลงแล้วลงในแอปที่กำลังใช้งาน</string>
+</dict>
+</plist>
