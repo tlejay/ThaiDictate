@@ -344,7 +344,7 @@ class AppCoordinator: NSObject, NSApplicationDelegate {
         if isRecording {
             button.title = "🔴 ฟัง…"
         } else {
-            button.title = outputLanguage == .english ? "🎙️ TH→EN" : "🎙️ ไทย"
+            button.title = outputLanguage == .english ? "🎙️ TH→EN" : "🎙️ TH"
         }
     }
 
