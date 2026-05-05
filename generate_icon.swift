@@ -41,7 +41,7 @@ func renderIcon(size: CGFloat) -> NSImage {
 
     ctx.restoreGState()
 
-    let micPointSize = size * 0.55
+    let micPointSize = size * 0.50
     let symbolConfig = NSImage.SymbolConfiguration(pointSize: micPointSize, weight: .bold)
     if let symbol = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: nil)?
         .withSymbolConfiguration(symbolConfig) {
@@ -54,32 +54,32 @@ func renderIcon(size: CGFloat) -> NSImage {
         tinted.unlockFocus()
 
         let drawX = (size - tinted.size.width) / 2
-        let drawY = (size - tinted.size.height) / 2 - size * 0.02
+        let drawY = (size - tinted.size.height) / 2 + size * 0.03
         tinted.draw(at: NSPoint(x: drawX, y: drawY),
                     from: NSRect(origin: .zero, size: tinted.size),
                     operation: .sourceOver,
                     fraction: 1.0)
     }
 
-    let fontSize = size * 0.13
-    let font = NSFont.systemFont(ofSize: fontSize, weight: .heavy)
+    let fontSize = size * 0.075
+    let font = NSFont.systemFont(ofSize: fontSize, weight: .bold)
     let attrs: [NSAttributedString.Key: Any] = [
         .font: font,
-        .foregroundColor: NSColor.white.withAlphaComponent(0.95)
+        .foregroundColor: NSColor.white.withAlphaComponent(0.95),
+        .kern: size * 0.003
     ]
-    let text = NSAttributedString(string: "TH", attributes: attrs)
+    let text = NSAttributedString(string: "madebytle", attributes: attrs)
     let textSize = text.size()
 
-    let badgePadX = size * 0.04
-    let badgePadY = size * 0.015
+    let badgePadX = size * 0.045
+    let badgePadY = size * 0.018
     let badgeWidth = textSize.width + badgePadX * 2
     let badgeHeight = textSize.height + badgePadY * 2
-    let badgeMargin = inset + size * 0.03
-    let badgeX = size - badgeWidth - badgeMargin
-    let badgeY = size - badgeHeight - badgeMargin
+    let badgeY = inset + size * 0.06
+    let badgeX = (size - badgeWidth) / 2
 
     let badgeRect = CGRect(x: badgeX, y: badgeY, width: badgeWidth, height: badgeHeight)
-    ctx.setFillColor(NSColor.black.withAlphaComponent(0.32).cgColor)
+    ctx.setFillColor(NSColor.black.withAlphaComponent(0.35).cgColor)
     let badgePath = CGPath(roundedRect: badgeRect,
                            cornerWidth: badgeHeight / 2,
                            cornerHeight: badgeHeight / 2,
@@ -88,7 +88,7 @@ func renderIcon(size: CGFloat) -> NSImage {
     ctx.fillPath()
 
     text.draw(at: NSPoint(x: badgeX + (badgeWidth - textSize.width) / 2,
-                          y: badgeY + (badgeHeight - textSize.height) / 2 - size * 0.005))
+                          y: badgeY + (badgeHeight - textSize.height) / 2 - size * 0.003))
 
     image.unlockFocus()
     return image
