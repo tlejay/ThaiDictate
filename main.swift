@@ -3,6 +3,8 @@ import Speech
 import AVFoundation
 import SwiftUI
 import Translation
+import ApplicationServices
+import UserNotifications
 
 let DOUBLE_TAP_INTERVAL: TimeInterval = 0.4
 let LOCALE_ID = "th-TH"
@@ -96,6 +98,7 @@ final class TranslationManager: ObservableObject {
 
     private var hostingWindow: NSWindow?
     private var pendingCompletion: ((String?) -> Void)?
+    private var timeoutWorkItem: DispatchWorkItem?
 
     init() {
         setupHostingWindow()
@@ -104,30 +107,52 @@ final class TranslationManager: ObservableObject {
     private func setupHostingWindow() {
         let view = TranslationHostView(manager: self)
         let hostingView = NSHostingView(rootView: view)
+        guard let screen = NSScreen.main else { return }
+        let visible = screen.visibleFrame
         let window = NSWindow(
-            contentRect: NSRect(x: -1000, y: -1000, width: 1, height: 1),
+            contentRect: NSRect(x: visible.midX - 1, y: visible.maxY - 2, width: 1, height: 1),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
         window.contentView = hostingView
-        window.alphaValue = 0
+        window.alphaValue = 0.01
         window.isReleasedWhenClosed = false
         window.ignoresMouseEvents = true
+        window.level = .normal
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         window.orderFront(nil)
         hostingWindow = window
     }
 
     func translate(_ text: String, completion: @escaping (String?) -> Void) {
+        timeoutWorkItem?.cancel()
         pendingCompletion = completion
         pendingInput = text
-        configuration = TranslationSession.Configuration(
-            source: Locale.Language(identifier: "th"),
-            target: Locale.Language(identifier: "en")
-        )
+
+        configuration = nil
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.configuration = TranslationSession.Configuration(
+                source: Locale.Language(identifier: "th"),
+                target: Locale.Language(identifier: "en")
+            )
+        }
+
+        let timeout = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            if self.pendingCompletion != nil {
+                print("Translation timed out — language pack may not be downloaded yet")
+                self.deliver(result: nil)
+            }
+        }
+        timeoutWorkItem = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8.0, execute: timeout)
     }
 
     func deliver(result: String?) {
+        timeoutWorkItem?.cancel()
+        timeoutWorkItem = nil
         let cb = pendingCompletion
         pendingCompletion = nil
         cb?(result)
@@ -196,7 +221,33 @@ class AppCoordinator: NSObject, NSApplicationDelegate {
                 }
             }
         }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
+        promptForAccessibilityIfNeeded()
         startMonitoringHotkey()
+    }
+
+    private func promptForAccessibilityIfNeeded() {
+        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        let options = [key: true] as CFDictionary
+        let trusted = AXIsProcessTrustedWithOptions(options)
+        if !trusted {
+            DispatchQueue.main.async {
+                self.showAlert(
+                    title: "ต้องอนุญาต Accessibility ก่อน",
+                    message: """
+                    ไม่งั้น ThaiDictate วางข้อความให้อัตโนมัติไม่ได้
+
+                    ขั้นตอน:
+                    1. System Settings → Privacy & Security → Accessibility
+                    2. ลบ ThaiDictate.app เก่าออก (ถ้ามี) แล้วเพิ่มใหม่
+                    3. เปิดสวิตช์ ON
+                    4. Quit ThaiDictate แล้วเปิดใหม่
+
+                    ระหว่างนี้ ข้อความจะอยู่ใน Clipboard ให้ — กด Cmd+V เองได้
+                    """
+                )
+            }
+        }
     }
 
     private func setupMenuBar() {
@@ -227,6 +278,12 @@ class AppCoordinator: NSObject, NSApplicationDelegate {
         thaiToEnglishItem.target = self
         menu.addItem(thaiToEnglishItem)
         updateOutputCheckmarks()
+
+        let downloadItem = NSMenuItem(title: "  ↓ ดาวน์โหลด Thai Translation Pack…",
+                                      action: #selector(openTranslateApp),
+                                      keyEquivalent: "")
+        downloadItem.target = self
+        menu.addItem(downloadItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -260,6 +317,26 @@ class AppCoordinator: NSObject, NSApplicationDelegate {
         outputLanguage = .english
         updateOutputCheckmarks()
         updateStatusIcon()
+    }
+
+    @objc private func openTranslateApp() {
+        let alert = NSAlert()
+        alert.messageText = "ดาวน์โหลด Thai Translation Pack"
+        alert.informativeText = """
+        วิธีโหลดให้ใช้งาน offline ได้:
+
+        1. กด "เปิด Translate" ข้างล่าง
+        2. ในแอป Translate → Settings (เฟือง) → Downloaded Languages
+        3. เพิ่ม Thai → รอจนโหลดเสร็จ
+        4. กลับมาใช้ ThaiDictate ได้เลย
+        """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "เปิด Translate")
+        alert.addButton(withTitle: "ปิด")
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            NSWorkspace.shared.launchApplication("Translate")
+        }
     }
 
     private func updateStatusIcon() {
@@ -386,7 +463,15 @@ class AppCoordinator: NSObject, NSApplicationDelegate {
             translationManager.translate(textAtStop) { [weak self] english in
                 guard let self = self else { return }
                 self.captionWindow.hide()
-                self.insertText(english ?? textAtStop)
+                if let english = english {
+                    self.insertText(english)
+                } else {
+                    self.postNotification(
+                        title: "⚠️ แปลภาษาไม่สำเร็จ",
+                        body: "ใช้ข้อความไทยแทน — ลองดาวน์โหลด Thai language pack ใน Translate.app ของ Apple"
+                    )
+                    self.insertText(textAtStop)
+                }
                 self.cleanupAudio()
             }
         }
@@ -407,30 +492,53 @@ class AppCoordinator: NSObject, NSApplicationDelegate {
         guard !trimmed.isEmpty else { return }
 
         let pb = NSPasteboard.general
-        savedClipboard = pb.string(forType: .string)
+        let canAutoPaste = AXIsProcessTrusted()
+
+        if canAutoPaste {
+            savedClipboard = pb.string(forType: .string)
+        }
         pb.clearContents()
         pb.setString(trimmed, forType: .string)
 
-        let src = CGEventSource(stateID: .combinedSessionState)
-        let vKey: CGKeyCode = 9
-        let down = CGEvent(keyboardEventSource: src, virtualKey: vKey, keyDown: true)
-        let up = CGEvent(keyboardEventSource: src, virtualKey: vKey, keyDown: false)
-        down?.flags = .maskCommand
-        up?.flags = .maskCommand
+        if canAutoPaste {
+            let src = CGEventSource(stateID: .combinedSessionState)
+            let vKey: CGKeyCode = 9
+            let down = CGEvent(keyboardEventSource: src, virtualKey: vKey, keyDown: true)
+            let up = CGEvent(keyboardEventSource: src, virtualKey: vKey, keyDown: false)
+            down?.flags = .maskCommand
+            up?.flags = .maskCommand
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            down?.post(tap: .cghidEventTap)
-            up?.post(tap: .cghidEventTap)
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-            guard let self = self else { return }
-            if let old = self.savedClipboard {
-                pb.clearContents()
-                pb.setString(old, forType: .string)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                down?.post(tap: .cghidEventTap)
+                up?.post(tap: .cghidEventTap)
             }
-            self.savedClipboard = nil
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                guard let self = self else { return }
+                if let old = self.savedClipboard {
+                    pb.clearContents()
+                    pb.setString(old, forType: .string)
+                }
+                self.savedClipboard = nil
+            }
+        } else {
+            postNotification(
+                title: "📋 คัดลอกแล้ว — กด Cmd+V เพื่อวาง",
+                body: trimmed
+            )
         }
+    }
+
+    private func postNotification(title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
     }
 
     private func showAlert(title: String, message: String) {
