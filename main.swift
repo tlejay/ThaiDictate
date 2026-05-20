@@ -255,7 +255,7 @@ class AppCoordinator: NSObject, NSApplicationDelegate {
         updateStatusIcon()
 
         let menu = NSMenu()
-        let toggleItem = NSMenuItem(title: "เริ่ม / หยุดบันทึก  (กด Control 2 ครั้ง)",
+        let toggleItem = NSMenuItem(title: "เริ่ม (Control×2) / หยุด (Control×1)",
                                     action: #selector(toggle),
                                     keyEquivalent: "")
         toggleItem.target = self
@@ -361,14 +361,22 @@ class AppCoordinator: NSObject, NSApplicationDelegate {
         let isControlNow = event.modifierFlags.contains(.control)
 
         if isControlNow && !wasControlPressed {
-            let now = Date()
-            if let last = lastControlDownAt, now.timeIntervalSince(last) < DOUBLE_TAP_INTERVAL {
-                lastControlDownAt = nil
+            if isRecording {
+                // Single Control press stops when recording
                 DispatchQueue.main.async { [weak self] in
-                    self?.toggle()
+                    self?.stopRecording()
                 }
             } else {
-                lastControlDownAt = now
+                // Double-tap starts recording
+                let now = Date()
+                if let last = lastControlDownAt, now.timeIntervalSince(last) < DOUBLE_TAP_INTERVAL {
+                    lastControlDownAt = nil
+                    DispatchQueue.main.async { [weak self] in
+                        self?.startRecording()
+                    }
+                } else {
+                    lastControlDownAt = now
+                }
             }
         }
         wasControlPressed = isControlNow
@@ -508,12 +516,13 @@ class AppCoordinator: NSObject, NSApplicationDelegate {
             down?.flags = .maskCommand
             up?.flags = .maskCommand
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            // Delay paste to allow modifier keys (e.g. Control) to be released first
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                 down?.post(tap: .cghidEventTap)
                 up?.post(tap: .cghidEventTap)
             }
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 guard let self = self else { return }
                 if let old = self.savedClipboard {
                     pb.clearContents()
