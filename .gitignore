@@ -22,3 +22,20 @@ Package.resolved
 .vscode/
 .idea/
 *.swp
+# Dependencies
+node_modules/
+.pnpm-store/
+# Env & secrets
+.env
+.env.*
+!.env.example
+# Build outputs
+.next/
+dist/
+out/
+# Vercel
+.vercel
+# OS
+# Logs
+*.log
+npm-debug.log*
